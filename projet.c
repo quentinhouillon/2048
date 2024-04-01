@@ -8,7 +8,7 @@ typedef enum {
 	down = KEY_DOWN,
 	left = KEY_LEFT,
 	right = KEY_RIGHT,
-	backspace = KEY_BACKSPACE,
+	backspace = 127, // BACKSPACE NE FONCTIONNE PAS SUR MAC POUR MOI
 } Key;
 
 #define TabSize 4
@@ -17,15 +17,35 @@ unsigned int score = 0;
 
 void INIT_2048() {
 	initscr();
+	start_color();
 	raw();
 	keypad(stdscr, TRUE);
 	noecho();
 	srand(time(NULL));
+
+	init_pair(1, COLOR_RED, COLOR_BLACK);
+    init_pair(2, COLOR_GREEN, COLOR_BLACK);
+    init_pair(3, COLOR_BLUE, COLOR_BLACK);
+    init_pair(4, COLOR_MAGENTA, COLOR_BLACK);
+    init_pair(5, COLOR_CYAN, COLOR_BLACK);
+    init_pair(6, COLOR_YELLOW, COLOR_BLACK);
+    init_pair(7, COLOR_WHITE, COLOR_BLACK);
+
 }
 
 void DONE_2048() {
 	endwin();
 	exit(0);
+}
+
+int set_color(int value) {
+	int count=0;
+	while (value>1) {
+		value = value/2;
+		count++;
+	}
+	return (count%7)+1;
+    
 }
 
 void init_board() {
@@ -36,32 +56,49 @@ void init_board() {
 	}
 }
 
+void display(char* val) {
+    for (int i=0; i<TabSize; i++) {
+        printw(val);
+    }
+}
+
 void display_board() {
 	move(0, 0);
+	int color;
 	printw("== 2048 =============================\n");
 	printw("======================= score :%5i\n", score);
-	for (unsigned int i=0; i<TabSize; i++) {
-		printw("+ - - - - - - - - + - - - - - - - - + - - - - - - - - + - - - - - - - - +\n");
-		printw("| %17 | %17 | %17 | %17 |\n");
+	for (int i=0; i<TabSize; i++) {
+		display("+ - - - - - - - - ");
+        printw("+\n|");
+		display(" %17 |");
+        printw("\n");
 		printw("|");
-		for (unsigned int j=0; j<TabSize; j++) {
-			if (board[i][j]) {
-				printw("%9i%9 |", board[i][j]);
+		for (int j=0; j<TabSize; j++) {
+            if (board[i][j]) {
+				color = set_color(board[i][j]);
+				attron(COLOR_PAIR(color));
+				printw("%9i", board[i][j]);
+				attroff(A_COLOR);
+				printw("%9|");
 			}
 			else {
 				printw("%18|");
 			}
 		}
-		printw("\n| %17 | %17 | %17 | %17 |\n");
+        printw("\n|");
+		display(" %17 |");
+        printw("\n");
+        
 	}
-	printw("+ - - - - - - - - + - - - - - - - - + - - - - - - - - + - - - - - - - - +\n");
+    display("+ - - - - - - - - ");
+    printw("+\n");
 	refresh();
 }
 
 int count_empty() {
 	unsigned int count = 0;
 	for (unsigned int i=0; i<TabSize; i++) {
-		for (int j = 0; j < TabSize; j++) {
+		for (int j=0; j<TabSize; j++) {
 			if (!board[i][j]) {
 				count++;
 			}
@@ -71,57 +108,62 @@ int count_empty() {
 }
 
 void add_two(int empty) {
-	int rand;
-	if (empty>2) {
-		rand = random() % (empty-1);
-	}
-	else {
-		rand = empty;
-	}
+	int n = rand() % empty;
 
 	for (unsigned int i=0; i<TabSize; i++) {
 		for (int j=0; j<TabSize; j++) {
 			if (!board[i][j]) {
-				rand--;
-			}
-			if (!rand && !board[i][j]) {
-				board[i][j]=2;
-				break;
-				break;
+				if (n) {
+					n--;
+				}
+				else {
+					board[i][j] = 2;
+					return;
+				}
 			}
 		}
 	}
 }
 
 int shift_board() {
-	int to_return = 0;
-	for (int i=0; i<TabSize; i++) {
-		for (int j=TabSize-2; j>=0; j--){
-			if (!board[i][j] && board[i][j+1]) {
-				board[i][j] = board[i][j+1];
-				board[i][j+1] = 0;
-				to_return = 1;
-			}
-		}
-	}
-	return to_return;
+    int to_return = 0;
+
+    for (int i=0; i < TabSize; i++) {
+        int empty = -1;
+        for (int j=0; j < TabSize; j++) {
+            if (board[i][j]==0) {
+                if (empty==-1) {
+                    empty=j;
+                }
+            } else {
+                if (empty!=-1) {
+                    board[i][empty]=board[i][j];
+                    board[i][j] = 0;
+                    to_return = 1;
+                    empty++;
+                }
+            }
+        }
+    }
+
+    return to_return;
 }
 
 int update_board() {
-	shift_board();
-	int HasMoved = 0;
+	int to_return = 0;
+	if (shift_board()) {to_return=1;}
 	for (unsigned int i=0; i<TabSize; i++) {
 		for (int j=0; j<TabSize-1; j++) {
 			if (board[i][j]==board[i][j+1] && board[i][j]) {
 				board[i][j] += board[i][j+1];
 				board[i][j+1] = 0;
 				score += board[i][j];
-				HasMoved = 1;
+				to_return = 1;
 			}
 		}
 	}
 	shift_board();
-	return HasMoved;
+	return to_return;
 }
 
 Key get_key() {
@@ -159,9 +201,7 @@ int play(Key dir) {
 	switch(dir) {
 		case up:
 			pivot_board();
-			shift = shift_board();
-			update = update_board();
-			if (shift || update) {
+			if (update_board()) {
 				to_return=1;
 			}
 			pivot_board();
@@ -171,9 +211,7 @@ int play(Key dir) {
 			mirror_board();
 			pivot_board();
 			mirror_board();
-			shift = shift_board();
-			update = update_board();
-			if (shift || update) {
+			if (update_board()) {
 				to_return=1;
 			}
 			mirror_board();
@@ -182,25 +220,24 @@ int play(Key dir) {
 			return to_return;
 
 		case left:
-			shift = shift_board();
-			update = update_board();
-			if (shift || update) {
+			if (update_board()) {
 				to_return=1;
 			}
 			return to_return;
 
 		case right:
 			mirror_board();
-			shift = shift_board();
-			update = update_board();
-			if (shift || update) {
+			if (update_board()) {
 				to_return=1;
 			}
 			mirror_board();
 			return to_return;
 		
 		case backspace:
+			printw("=========== (press a key) ===========");
+			getch();
 			DONE_2048();
+			return 0;
 	}
 }
 
@@ -209,6 +246,7 @@ int game_over(int add) {
 	if (!count_case) {
 		printw("============= Game Over =============\n");
 		printw("=========== (press a key) ===========");
+		refresh();
 		getch();
 		return 1;
 	}
