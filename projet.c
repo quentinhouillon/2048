@@ -135,7 +135,8 @@ int shift_board() {
                 if (empty==-1) {
                     empty=j;
                 }
-            } else {
+            }
+			else {
                 if (empty!=-1) {
                     board[i][empty]=board[i][j];
                     board[i][j] = 0;
